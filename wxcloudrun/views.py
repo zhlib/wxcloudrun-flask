@@ -1,5 +1,6 @@
 from datetime import datetime
 from flask import render_template, request
+from pypdf import PdfReader
 from run import app
 from wxcloudrun.dao import delete_counterbyid, query_counterbyid, insert_counter, update_counterbyid
 from wxcloudrun.model import Counters
@@ -64,3 +65,45 @@ def get_count():
     """
     counter = Counters.query.filter(Counters.id == 1).first()
     return make_succ_response(0) if counter is None else make_succ_response(counter.count)
+
+
+@app.route('/api/pdf/parse', methods=['POST'])
+def parse_pdf():
+    """
+    :return: PDF解析后的文本内容
+    """
+    # 检查是否有文件上传
+    if 'file' not in request.files:
+        return make_err_response('缺少file参数')
+    
+    file = request.files['file']
+    
+    # 检查文件是否为空
+    if file.filename == '':
+        return make_err_response('文件为空')
+    
+    # 检查文件类型
+    if not file.filename.lower().endswith('.pdf'):
+        return make_err_response('文件类型错误，请上传PDF文件')
+    
+    try:
+        # 使用PdfReader解析PDF
+        pdf_reader = PdfReader(file)
+        
+        # 提取所有页面的文本
+        text_content = []
+        for page in pdf_reader.pages:
+            text = page.extract_text()
+            if text:
+                text_content.append(text)
+        
+        # 合并所有页面的文本
+        full_text = '\n\n'.join(text_content)
+        
+        return make_succ_response({
+            'text': full_text,
+            'page_count': len(pdf_reader.pages)
+        })
+    
+    except Exception as e:
+        return make_err_response(f'PDF解析失败: {str(e)}')
